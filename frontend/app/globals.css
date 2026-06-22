@@ -1,0 +1,151 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Groww Color System ──────────────────────────────────── */
+:root {
+  /* Groww brand palette */
+  --groww-green:  #00d09c;
+  --groww-red:    #eb3b5a;
+  --groww-purple: #6747f5;
+  --groww-blue:   #00a3ff;
+  --groww-orange: #f89c23;
+  --groww-pink:   #ff6b9d;
+  --groww-teal:   #00bfa5;
+  --groww-yellow: #ffd234;
+  --groww-indigo: #4c6ef5;
+  --groww-coral:  #ff6b6b;
+
+  /* Light mode — clean Vercel white/zinc style */
+  --bg:        #fafafa;
+  --surface:   #ffffff;
+  --surface-2: #f4f4f5;
+  --surface-3: #e4e4e7;
+  --border:    #e4e4e7;
+  --border-2:  #d4d4d8;
+  --text:      #09090b;
+  --muted:     #71717a;
+  --muted-2:   #a1a1aa;
+  --accent:    var(--groww-purple);
+  --pos:       var(--groww-green);
+  --neg:       var(--groww-red);
+  --warn:      var(--groww-orange);
+}
+
+.dark {
+  /* Dark mode — Vercel pure black and extremely dark gray surfaces */
+  --bg:        #000000;
+  --surface:   #09090b;
+  --surface-2: #18181b;
+  --surface-3: #27272a;
+  --border:    #27272a;
+  --border-2:  #3f3f46;
+  --text:      #fafafa;
+  --muted:     #a1a1aa;
+  --muted-2:   #52525b;
+
+  /* Vercel styled brand accents */
+  --groww-green:  #10b981; /* emerald-500 */
+  --groww-red:    #ef4444; /* red-500 */
+  --groww-purple: #8b5cf6; /* violet-500 */
+  --groww-blue:   #3b82f6; /* blue-500 */
+  --groww-orange: #f59e0b; /* amber-500 */
+  --groww-pink:   #ec4899; /* pink-500 */
+  --groww-teal:   #14b8a6; /* teal-500 */
+  --groww-yellow: #eab308; /* yellow-500 */
+  --groww-indigo: #6366f1; /* indigo-500 */
+  --groww-coral:  #f43f5e; /* rose-500 */
+
+  --accent: var(--groww-purple);
+  --pos:    var(--groww-green);
+  --neg:    var(--groww-red);
+  --warn:   var(--groww-orange);
+}
+
+/* ── Reset ───────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; border-color: var(--border); }
+html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; }
+body { background: var(--bg); color: var(--text); font-family: var(--font-sans), 'Geist', 'Plus Jakarta Sans', ui-sans-serif, system-ui; line-height: 1.5; }
+
+/* ── Scrollbar ───────────────────────────────────────────── */
+::-webkit-scrollbar        { width: 5px; height: 5px; }
+::-webkit-scrollbar-thumb  { background: var(--surface-3); border-radius: 999px; }
+::-webkit-scrollbar-track  { background: transparent; }
+
+/* ── Selection ───────────────────────────────────────────── */
+::selection { background: rgba(139,92,246,0.2); color: var(--text); }
+
+/* ── Typography helpers ──────────────────────────────────── */
+.tabular { font-variant-numeric: tabular-nums; font-family: var(--font-mono), 'Geist Mono', 'IBM Plex Mono', ui-monospace, monospace; }
+
+/* ── Vercel card style ─────────────────────────────────────── */
+.card-hover { transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease; }
+.card-hover:hover { border-color: var(--border-2); box-shadow: 0 10px 30px -10px rgba(0,0,0,0.5); transform: translateY(-1px); }
+
+/* Vercel linear border glows */
+.border-glow-purple:hover {
+  border-color: rgba(139, 92, 246, 0.45);
+  box-shadow: 0 0 25px -5px rgba(139, 92, 246, 0.12);
+}
+.border-glow-green:hover {
+  border-color: rgba(16, 185, 129, 0.45);
+  box-shadow: 0 0 25px -5px rgba(16, 185, 129, 0.12);
+}
+.border-glow-orange:hover {
+  border-color: rgba(245, 158, 11, 0.45);
+  box-shadow: 0 0 25px -5px rgba(245, 158, 11, 0.12);
+}
+.border-glow-blue:hover {
+  border-color: rgba(59, 130, 246, 0.45);
+  box-shadow: 0 0 25px -5px rgba(59, 130, 246, 0.12);
+}
+
+/* ── Groww shimmer skeleton ────────────────────────────────── */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.shimmer {
+  background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-3) 50%, var(--surface-2) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* ── Gradient text ───────────────────────────────────────── */
+.gradient-text {
+  background: linear-gradient(135deg, var(--groww-purple) 0%, var(--groww-blue) 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+.gradient-text-green {
+  background: linear-gradient(135deg, var(--groww-green) 0%, var(--groww-teal) 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+
+/* ── Glow effects ────────────────────────────────────────── */
+.glow-purple { box-shadow: 0 0 20px -4px rgba(139,92,246,0.3); }
+.glow-green  { box-shadow: 0 0 20px -4px rgba(16,185,129,0.3); }
+.glow-red    { box-shadow: 0 0 20px -4px rgba(239,68,68,0.3); }
+.glow-blue   { box-shadow: 0 0 20px -4px rgba(59,130,246,0.3); }
+
+
+/* ── Groww ticker animation ──────────────────────────────── */
+@keyframes ticker-scroll {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+.ticker-track { animation: ticker-scroll 40s linear infinite; }
+.ticker-track:hover { animation-play-state: paused; }
+
+/* ── Animations ──────────────────────────────────────────── */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.4; transform: scale(0.85); }
+}

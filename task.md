@@ -1,0 +1,7 @@
+- `[x]` Build `/settings` page (Policy Control Room + Autonomy + Weight tuning)
+- `[x]` Build `/watchlist` page (Scanner Universe list + Add form)
+- `[x]` Build `/portfolio` page (Holdings, NAV, cash reserves, Recharts pie chart)
+- `[x]` Build `/performance` page (Accuracy leaderboard + alpha calibration charts)
+- `[x]` Build `/memory` page (Semantic search UI)
+- `[x]` Build `/reports` page (Generate and read morning/evening reports)
+- `[x]` Verify Next.js build passes cleanly without compilation errors

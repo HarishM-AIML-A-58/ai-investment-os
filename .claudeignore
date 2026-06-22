@@ -1,0 +1,7 @@
+# Build artifacts — never need to read these
+frontend/node_modules/
+frontend/.next/
+backend/__pycache__/
+**/__pycache__/
+**/*.pyc
+**/*.pyo
