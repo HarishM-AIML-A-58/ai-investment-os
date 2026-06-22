@@ -49,8 +49,9 @@ async def add_watchlist(
     )
 
 
-@router.delete("/{item_id}", status_code=204)
-async def delete_watchlist(item_id: str, db: AsyncSession = Depends(get_db)) -> None:
+@router.delete("/{item_id}")
+async def delete_watchlist(item_id: str, db: AsyncSession = Depends(get_db)):
     removed = await remove_item(db, item_id)
     if not removed:
         raise HTTPException(status_code=404, detail="Watchlist item not found")
+    return {"status": "success"}
