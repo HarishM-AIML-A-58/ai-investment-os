@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.recommendation import Recommendation
+from app.models.security import Security
 
 
 async def create_recommendation(
@@ -40,11 +41,12 @@ async def get_recommendation(
 
 async def list_recommendations(
     session: AsyncSession, *, limit: int = 50
-) -> list[Recommendation]:
-    """Most-recent recommendations (summary; children not eagerly loaded)."""
+) -> list[tuple[Recommendation, Security]]:
+    """Most-recent recommendations joined with their Security (for symbol lookup)."""
     stmt = (
-        select(Recommendation)
+        select(Recommendation, Security)
+        .join(Security, Recommendation.security_id == Security.id)
         .order_by(Recommendation.created_at.desc())
         .limit(limit)
     )
-    return list((await session.execute(stmt)).scalars().all())
+    return list((await session.execute(stmt)).all())

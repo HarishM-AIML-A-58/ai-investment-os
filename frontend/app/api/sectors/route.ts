@@ -1,20 +1,19 @@
 import { NextResponse } from "next/server";
 
-type IndexDatum = { label: string; price: number; change: number; changePct: number; up: boolean };
-
-const CFG = [
-  { label: "NIFTY 50",   sym: "%5ENSEI"      },
-  { label: "SENSEX",     sym: "%5EBSESN"     },
-  { label: "NIFTY BANK", sym: "%5ENSEBANK"   },
-  { label: "INDIA VIX",  sym: "%5EINDIAVIX"  },
-  { label: "MIDCPNIFTY", sym: "%5ENSMIDCP"   },
-  { label: "FINNIFTY",   sym: "%5ECNXFIN"    },
-  { label: "NIFTYIT",    sym: "%5ECNXIT"     },
+const SECTORS = [
+  { label: "Banking",   sym: "%5ENSEBANK"   },
+  { label: "IT",        sym: "%5ECNXIT"     },
+  { label: "Financial", sym: "%5ECNXFIN"    },
+  { label: "Mid Cap",   sym: "%5ENSMIDCP"   },
+  { label: "Pharma",    sym: "%5ECNXPHARMA" },
+  { label: "Auto",      sym: "%5ECNXAUTO"   },
+  { label: "FMCG",      sym: "%5ECNXFMCG"   },
+  { label: "Metal",     sym: "%5ECNXMETAL"  },
 ];
 
 export async function GET() {
   const results = await Promise.allSettled(
-    CFG.map(async ({ label, sym }) => {
+    SECTORS.map(async ({ label, sym }) => {
       const url = `https://query1.finance.yahoo.com/v8/finance/chart/${sym}?interval=1m&range=1d`;
       const res = await fetch(url, {
         headers: {
@@ -30,16 +29,16 @@ export async function GET() {
       if (!meta) throw new Error("no meta");
       const price: number = meta.regularMarketPrice ?? 0;
       const prev: number = meta.chartPreviousClose ?? meta.previousClose ?? price;
-      const change = parseFloat((price - prev).toFixed(2));
-      const changePct = prev ? parseFloat(((change / prev) * 100).toFixed(2)) : 0;
-      return { label, price, change, changePct, up: change >= 0 } as IndexDatum;
+      const change = price - prev;
+      const changePct = prev ? (change / prev) * 100 : 0;
+      return { label, changePct: parseFloat(changePct.toFixed(2)), up: change >= 0 };
     })
   );
 
-  const data: IndexDatum[] = results.map((r, i) =>
+  const data = results.map((r, i) =>
     r.status === "fulfilled"
       ? r.value
-      : { label: CFG[i].label, price: 0, change: 0, changePct: 0, up: true }
+      : { label: SECTORS[i].label, changePct: 0, up: true, error: true }
   );
 
   return NextResponse.json(data, {

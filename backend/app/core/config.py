@@ -39,6 +39,10 @@ class Settings(BaseSettings):
     # --- Broker & Market-Data Gateway (openalgo) ---
     gateway_url: str = "http://gateway:5000"
 
+    # --- Groww MCP Server Configuration ---
+    groww_mcp_command: str = "npx"
+    groww_mcp_args: str = "mcp-remote@0.1.18 https://mcp.groww.in/mcp 52155"
+
     # --- Azure OpenAI (deployment name is config-driven, never hardcoded) ---
     azure_openai_endpoint: str | None = None
     azure_openai_api_key: str | None = None

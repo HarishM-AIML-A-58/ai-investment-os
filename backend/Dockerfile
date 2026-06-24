@@ -7,9 +7,9 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-# curl is used by the compose healthcheck
+# curl is used by the compose healthcheck, nodejs/npm are used by groww mcp-remote
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl \
+    && apt-get install -y --no-install-recommends curl nodejs npm \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .

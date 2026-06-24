@@ -17,6 +17,7 @@ from app.api.v1.recommendations import router as recommendations_router
 from app.api.v1.reports import router as reports_router
 from app.api.v1.backtest import router as backtest_router
 from app.api.v1.watchlist import router as watchlist_router
+from app.api.v1.broker import router as broker_router
 from app.core.config import get_settings
 from app.core.logging import configure_logging
 
@@ -60,6 +61,7 @@ def create_app() -> FastAPI:
     app.include_router(watchlist_router, prefix="/api/v1")
     app.include_router(backtest_router, prefix="/api/v1")
     app.include_router(market_router, prefix="/api/v1")
+    app.include_router(broker_router, prefix="/api/v1")
     return app
 
 

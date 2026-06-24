@@ -1,12 +1,15 @@
 "use client";
 
 import * as React from "react";
+import { useQuery } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   TrendingUp, TrendingDown, Wallet, BarChart2,
   ArrowUpRight, ArrowDownRight, PieChartIcon, Layers,
+  RefreshCw, Wifi, WifiOff,
 } from "lucide-react";
 import { Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
+import { api } from "@/lib/api";
 
 /* ── Real portfolio data (Groww statement 20-06-2026) ──────── */
 const STOCKS: {
@@ -47,19 +50,7 @@ const MUTUAL_FUNDS: {
   { name: "Nippon India Large Cap Fund", amc: "Nippon India MF", category: "Equity", subcat: "Large Cap", units: 61.334, invested: 5999.72, current: 6181.39, returns: 181.67, xirr: "16.79%" },
 ];
 
-/* ── Derived totals ──────────────────────────────────────────── */
-const stockInvested  = STOCKS.reduce((s, h) => s + h.buyValue, 0);
-const stockCurrent   = STOCKS.reduce((s, h) => s + h.currentValue, 0);
-const stockPnL       = stockCurrent - stockInvested;
-const mfInvested     = MUTUAL_FUNDS.reduce((s, f) => s + f.invested, 0);
-const mfCurrent      = MUTUAL_FUNDS.reduce((s, f) => s + f.current, 0);
-const mfPnL          = mfCurrent - mfInvested;
-const totalInvested  = stockInvested + mfInvested;
-const totalCurrent   = stockCurrent + mfCurrent;
-const totalPnL       = totalCurrent - totalInvested;
-const totalPnLPct    = (totalPnL / totalInvested) * 100;
-
-/* ── Sector chart data ────────────────────────────────────────── */
+/* ── Sector allocation config ────────────────────────────────── */
 const SECTOR_COLORS: Record<string, string> = {
   Banking: "#6747f5", "Gold ETF": "#ffd234", Energy: "#f89c23",
   "Commodity ETF": "#00bfa5", "Index ETF": "#00a3ff", "IT ETF": "#4c6ef5",
@@ -67,17 +58,6 @@ const SECTOR_COLORS: Record<string, string> = {
   Renewables: "#00d09c", Auto: "#f89c23", Textiles: "#888899", Telecom: "#00bfa5",
 };
 
-const sectorData = buildSectorData();
-
-function buildSectorData() {
-  const map: Record<string, number> = {};
-  STOCKS.forEach(s => { map[s.sector] = (map[s.sector] ?? 0) + s.currentValue; });
-  MUTUAL_FUNDS.forEach(f => { const k = f.subcat; map[k] = (map[k] ?? 0) + f.current; });
-  return Object.entries(map).map(([name, value]) => ({ name, value: +value.toFixed(0) }))
-    .sort((a, b) => b.value - a.value);
-}
-
-const PIE_DATA = buildSectorData();
 const PIE_COLORS = ["#6747f5","#ffd234","#f89c23","#00bfa5","#00a3ff","#4c6ef5","#00d09c","#ff6b9d","#eb3b5a","#888899","#00d09c","#f89c23","#00bfa5"];
 
 /* ── Formatting helpers ───────────────────────────────────────── */
@@ -106,23 +86,101 @@ type Tab = "stocks" | "mf";
 
 export default function PortfolioPage() {
   const [tab, setTab] = React.useState<Tab>("stocks");
-  const isProfit = totalPnL >= 0;
+
+  // React Query: Fetch and Poll data dynamically at 15s intervals
+  const { data: holdingsData, isLoading: holdingsLoading, isFetching: holdingsFetching } = useQuery({
+    queryKey: ["brokerHoldings"],
+    queryFn: () => api.getBrokerHoldings(),
+    refetchInterval: 15_000,
+  });
+
+  const { data: fundsData, isLoading: fundsLoading, isFetching: fundsFetching } = useQuery({
+    queryKey: ["brokerFunds"],
+    queryFn: () => api.getBrokerFunds(),
+    refetchInterval: 15_000,
+  });
+
+  // Check if we successfully fetched live data via MCP. If empty/error, fallback to STOCKS & MUTUAL_FUNDS static statement.
+  const hasLiveHoldings = !!(holdingsData?.stocks && holdingsData.stocks.length > 0);
+  const stocks = hasLiveHoldings ? holdingsData!.stocks : STOCKS;
+  const mutualFunds = (holdingsData?.mutual_funds && holdingsData.mutual_funds.length > 0) ? holdingsData.mutual_funds : MUTUAL_FUNDS;
+  
+  const cash = fundsData?.available_cash ?? 25000.00;
+  const collateral = fundsData?.collateral ?? 0.00;
+  const utilized = fundsData?.utilized ?? 0.00;
+
+  // Derived dynamic totals
+  const stockInvested  = stocks.reduce((sum, item) => sum + item.buyValue, 0);
+  const stockCurrent   = stocks.reduce((sum, item) => sum + item.currentValue, 0);
+  const stockPnL       = stockCurrent - stockInvested;
+  const mfInvested     = mutualFunds.reduce((sum, item) => sum + item.invested, 0);
+  const mfCurrent      = mutualFunds.reduce((sum, item) => sum + item.current, 0);
+  const mfPnL          = mfCurrent - mfInvested;
+  const totalInvested  = stockInvested + mfInvested;
+  const totalCurrent   = stockCurrent + mfCurrent;
+  const totalPnL       = totalCurrent - totalInvested;
+  const totalPnLPct    = totalInvested > 0 ? (totalPnL / totalInvested) * 100 : 0.0;
+  const isProfit       = totalPnL >= 0;
+
+  // Dynamic Sector allocation chart data
+  const sectorData = React.useMemo(() => {
+    const map: Record<string, number> = {};
+    stocks.forEach(s => { map[s.sector] = (map[s.sector] ?? 0) + s.currentValue; });
+    mutualFunds.forEach(f => { const k = f.subcat; map[k] = (map[k] ?? 0) + f.current; });
+    return Object.entries(map).map(([name, value]) => ({ name, value: +value.toFixed(0) }))
+      .sort((a, b) => b.value - a.value);
+  }, [stocks, mutualFunds]);
+
+  // Performances for quick stats
+  const bestStock = React.useMemo(() => {
+    if (!stocks.length) return null;
+    return stocks.reduce((best, s) => s.pnl > best.pnl ? s : best, stocks[0]);
+  }, [stocks]);
+
+  const worstStock = React.useMemo(() => {
+    if (!stocks.length) return null;
+    return stocks.reduce((worst, s) => s.pnl < worst.pnl ? s : worst, stocks[0]);
+  }, [stocks]);
+
+  const biggestHold = React.useMemo(() => {
+    if (!stocks.length) return null;
+    return stocks.reduce((big, s) => s.currentValue > big.currentValue ? s : big, stocks[0]);
+  }, [stocks]);
+
+  const isFetchingAny = holdingsFetching || fundsFetching;
 
   return (
     <div className="space-y-5 animate-fade-up">
 
       {/* ── Page heading ─────────────────────────────────────── */}
-      <div>
-        <div className="flex items-center gap-2 mb-1">
-          <Wallet className="h-4 w-4" style={{ color: "var(--groww-purple)" }} />
-          <span className="text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: "var(--groww-purple)" }}>
-            Murugan Harish · 8804517660
-          </span>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <Wallet className="h-4 w-4" style={{ color: "var(--groww-purple)" }} />
+            <span className="text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: "var(--groww-purple)" }}>
+              Murugan Harish · Groww Account
+            </span>
+          </div>
+          <h1 className="text-[24px] font-bold tracking-tight text-text">Portfolio Deck</h1>
+          <p className="text-[13px] text-muted mt-0.5">
+            {hasLiveHoldings ? "Live Broker Data via Groww MCP" : "Offline Statement · Showing last downloaded statement"}
+          </p>
         </div>
-        <h1 className="text-[24px] font-bold tracking-tight text-text">Portfolio Deck</h1>
-        <p className="text-[13px] text-muted mt-0.5">
-          Holdings as on 20 Jun 2026 · Groww Demat · NSE / BSE
-        </p>
+
+        {/* Live Status indicator */}
+        <div className="flex items-center gap-2 rounded-lg bg-surface border border-border px-3 py-1.5 self-start md:self-auto shadow-sm">
+          {hasLiveHoldings ? (
+            <Wifi className="h-4.5 w-4.5 text-emerald-500 animate-pulse" />
+          ) : (
+            <WifiOff className="h-4.5 w-4.5 text-amber-500" />
+          )}
+          <span className="text-[12px] font-medium text-text">
+            {hasLiveHoldings ? "Live via Groww MCP" : "Mock / Cached Statement"}
+          </span>
+          {isFetchingAny && (
+            <RefreshCw className="h-3 w-3 text-muted animate-spin ml-1" />
+          )}
+        </div>
       </div>
 
       {/* ── Stat cards ────────────────────────────────────────── */}
@@ -180,8 +238,8 @@ export default function PortfolioPage() {
           {/* Tabs */}
           <div className="flex items-center gap-1 border-b border-border px-4 py-3">
             {([
-              { key: "stocks", label: `Stocks (${STOCKS.length})` },
-              { key: "mf",     label: `Mutual Funds (${MUTUAL_FUNDS.length})` },
+              { key: "stocks", label: `Stocks (${stocks.length})` },
+              { key: "mf",     label: `Mutual Funds (${mutualFunds.length})` },
             ] as { key: Tab; label: string }[]).map(({ key, label }) => (
               <button
                 key={key}
@@ -203,8 +261,9 @@ export default function PortfolioPage() {
               </button>
             ))}
             <div className="ml-auto flex items-center gap-1.5">
-              <div className="h-1.5 w-1.5 rounded-full bg-[#00d09c] animate-pulse" />
-              <span className="text-[11px] font-medium text-[#00d09c]">Live</span>
+              <span className="text-[11px] font-medium text-muted">
+                {hasLiveHoldings ? "Live updating (15s)" : "Cached Statement"}
+              </span>
             </div>
           </div>
 
@@ -222,16 +281,16 @@ export default function PortfolioPage() {
                   <span className="text-right">P&L</span>
                 </div>
                 <div className="divide-y divide-border/50 max-h-[520px] overflow-y-auto">
-                  {STOCKS.map((s, i) => {
+                  {stocks.map((s, i) => {
                     const isUp = s.pnl >= 0;
                     const sColor = SECTOR_COLORS[s.sector] ?? "#888";
-                    const pnlPct = (s.pnl / s.buyValue) * 100;
+                    const pnlPct = s.buyValue > 0 ? (s.pnl / s.buyValue) * 100 : 0.0;
                     return (
                       <motion.div
                         key={s.isin}
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
-                        transition={{ delay: i * 0.025 }}
+                        transition={{ delay: i * 0.015 }}
                         className="grid grid-cols-[2fr_60px_80px_80px_80px_90px_80px] gap-2 items-center px-5 py-3 hover:bg-surface-2/40 transition-colors"
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
@@ -243,7 +302,7 @@ export default function PortfolioPage() {
                           </div>
                           <div className="min-w-0">
                             <div className="text-[13px] font-bold text-text truncate leading-tight">{s.name}</div>
-                            <div className="text-[10px] text-muted" style={{ color: sColor }}>{s.sector}</div>
+                            <div className="text-[10px] text-muted truncate" style={{ color: sColor }}>{s.sector}</div>
                           </div>
                         </div>
                         <div className="text-right tabular text-[12px] font-semibold text-text">{s.qty}</div>
@@ -270,7 +329,7 @@ export default function PortfolioPage() {
 
                 {/* Stocks total row */}
                 <div className="grid grid-cols-[2fr_60px_80px_80px_80px_90px_80px] gap-2 items-center border-t border-border bg-surface-2/60 px-5 py-3">
-                  <div className="text-[12px] font-bold text-text">Total ({STOCKS.length} stocks)</div>
+                  <div className="text-[12px] font-bold text-text">Total ({stocks.length} stocks)</div>
                   <div />
                   <div />
                   <div className="text-right tabular text-[12px] font-bold text-text">₹{stockInvested.toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</div>
@@ -281,7 +340,7 @@ export default function PortfolioPage() {
                       {stockPnL >= 0 ? "+" : ""}₹{Math.abs(stockPnL).toFixed(0)}
                     </div>
                     <div className="tabular text-[10px]" style={{ color: stockPnL >= 0 ? "#00d09c" : "#eb3b5a" }}>
-                      {((stockPnL / stockInvested) * 100).toFixed(2)}%
+                      {stockInvested > 0 ? ((stockPnL / stockInvested) * 100).toFixed(2) : 0.0}%
                     </div>
                   </div>
                 </div>
@@ -295,7 +354,6 @@ export default function PortfolioPage() {
                     { label: "Total Invested", value: rupee(mfInvested), color: "#6747f5" },
                     { label: "Current Value",  value: rupee(mfCurrent),  color: "#00a3ff" },
                     { label: "Total Returns",  value: rupee(mfPnL, true), color: mfPnL >= 0 ? "#00d09c" : "#eb3b5a" },
-                    { label: "XIRR (avg)",     value: "29.29%",          color: "#f89c23" },
                   ].map(({ label, value, color }) => (
                     <div key={label}>
                       <div className="text-[10px] text-muted mb-0.5">{label}</div>
@@ -306,16 +364,16 @@ export default function PortfolioPage() {
 
                 {/* MF cards */}
                 <div className="p-4 space-y-3">
-                  {MUTUAL_FUNDS.map((f, i) => {
+                  {mutualFunds.map((f, i) => {
                     const isUp = f.returns >= 0;
-                    const retPct = (f.returns / f.invested) * 100;
+                    const retPct = f.invested > 0 ? (f.returns / f.invested) * 100 : 0.0;
                     const catColor = f.subcat === "Mid Cap" ? "#f89c23" : "#6747f5";
                     return (
                       <motion.div
                         key={f.name}
                         initial={{ opacity: 0, y: 6 }}
                         animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: i * 0.08 }}
+                        transition={{ delay: i * 0.05 }}
                         className="rounded-xl border border-border bg-surface-2/30 p-4 hover:bg-surface-2/60 transition-colors"
                       >
                         <div className="flex items-start justify-between gap-3 mb-3">
@@ -370,29 +428,29 @@ export default function PortfolioPage() {
               <ResponsiveContainer width="100%" height={200}>
                 <PieChart>
                   <Pie
-                    data={PIE_DATA}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%" cy="50%"
-                    innerRadius={55}
-                    outerRadius={90}
-                    strokeWidth={2}
-                    stroke="var(--surface)"
-                  >
-                    {PIE_DATA.map((_, i) => (
-                      <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                    ))}
-                  </Pie>
+                     data={sectorData}
+                     dataKey="value"
+                     nameKey="name"
+                     cx="50%" cy="50%"
+                     innerRadius={55}
+                     outerRadius={90}
+                     strokeWidth={2}
+                     stroke="var(--surface)"
+                   >
+                     {sectorData.map((_, i) => (
+                       <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                     ))}
+                   </Pie>
                   <Tooltip content={<ChartTooltip />} />
                 </PieChart>
               </ResponsiveContainer>
 
               {/* Legend */}
               <div className="mt-2 space-y-1.5 max-h-[260px] overflow-y-auto">
-                {PIE_DATA.map((entry, i) => {
+                {sectorData.map((entry, i) => {
                   const color = PIE_COLORS[i % PIE_COLORS.length];
-                  const total = PIE_DATA.reduce((s, d) => s + d.value, 0);
-                  const pctVal = ((entry.value / total) * 100).toFixed(1);
+                  const total = sectorData.reduce((s, d) => s + d.value, 0);
+                  const pctVal = total > 0 ? ((entry.value / total) * 100).toFixed(1) : "0.0";
                   return (
                     <div key={entry.name} className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2 min-w-0">
@@ -414,18 +472,46 @@ export default function PortfolioPage() {
           <div className="rounded-xl border border-border bg-surface p-4 space-y-3">
             <div className="flex items-center gap-2 mb-1">
               <Layers className="h-3.5 w-3.5 text-muted" />
-              <span className="text-[12px] font-bold text-text">Quick Stats</span>
+              <span className="text-[12px] font-bold text-text">Quick Stats & Cash</span>
             </div>
+            
+            <div className="border-b border-border/50 pb-2 mb-2 space-y-1.5">
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="text-muted">Available Cash</span>
+                <span className="font-semibold text-text tabular">₹{cash.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+              </div>
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="text-muted">Collateral Margin</span>
+                <span className="font-semibold text-text tabular">₹{collateral.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+              </div>
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="text-muted">Utilized Margin</span>
+                <span className="font-semibold text-text tabular">₹{utilized.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+              </div>
+            </div>
+
             {[
-              { label: "Total Holdings", value: `${STOCKS.length} stocks · ${MUTUAL_FUNDS.length} MFs`, color: "#6747f5" },
+              { label: "Total Holdings", value: `${stocks.length} stocks · ${mutualFunds.length} MFs`, color: "#6747f5" },
               { label: "Portfolio Return", value: pct(totalPnLPct, true), color: totalPnL >= 0 ? "#00d09c" : "#eb3b5a" },
-              { label: "Best Performer", value: "SOUTH INDIAN BANK +₹735", color: "#00d09c" },
-              { label: "Worst Performer", value: "NIPPON SILVER -₹2,067", color: "#eb3b5a" },
-              { label: "Biggest Hold",   value: "GOLD BEES · ₹21,921", color: "#ffd234" },
+              { 
+                label: "Best Performer", 
+                value: bestStock ? `${bestStock.name.split(" ")[0]} (${bestStock.pnl >= 0 ? "+" : "-"}₹${Math.abs(bestStock.pnl).toFixed(0)})` : "—", 
+                color: bestStock && bestStock.pnl >= 0 ? "#00d09c" : "#eb3b5a" 
+              },
+              { 
+                label: "Worst Performer", 
+                value: worstStock ? `${worstStock.name.split(" ")[0]} (${worstStock.pnl >= 0 ? "+" : "-"}₹${Math.abs(worstStock.pnl).toFixed(0)})` : "—", 
+                color: worstStock && worstStock.pnl >= 0 ? "#00d09c" : "#eb3b5a" 
+              },
+              { 
+                label: "Biggest Hold",   
+                value: biggestHold ? `${biggestHold.name.split(" ")[0]} (₹${(biggestHold.currentValue).toLocaleString("en-IN", {maximumFractionDigits: 0})})` : "—", 
+                color: "#ffd234" 
+              },
             ].map(({ label, value, color }) => (
               <div key={label} className="flex items-center justify-between">
                 <span className="text-[11px] text-muted">{label}</span>
-                <span className="text-[11px] font-bold tabular" style={{ color }}>{value}</span>
+                <span className="text-[11px] font-bold tabular truncate max-w-[150px] text-right" style={{ color }}>{value}</span>
               </div>
             ))}
           </div>

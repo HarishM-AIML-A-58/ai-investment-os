@@ -8,90 +8,15 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Sparkles, ArrowRight, CheckCircle2, XCircle, TrendingUp,
   Zap, ShieldCheck, ShieldAlert, Loader2, DollarSign,
-  Search, Flame, RefreshCw, X, Activity, BarChart2, Clock,
+  Search, Flame, RefreshCw, X, Activity, Clock,
   MessageSquare, FileText,
 } from "lucide-react";
 import { ActionBadge, StatusBadge } from "@/components/status-badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api";
 import { inr, timeAgo } from "@/lib/format";
 import type { DecisionOutcome, RecommendationDetail } from "@/lib/types";
 
-/* ── AI trending picks ─────────────────────────────────────── */
-const TRENDING = [
-  {
-    symbol: "HDFCBANK", name: "HDFC Bank", sector: "Banking",
-    price: "₹1,346", change: "+0.31%", up: true,
-    reason: "FII net buying ₹2,400 Cr · RSI at 28 — extreme oversold",
-    pattern: "Bullish Reversal", patternColor: "#00d09c",
-    conviction: 82, action: "BUY" as const,
-    thesis: "Strong asset quality + credit growth momentum. RSI at 28 signals extreme oversold. FII accumulating across 3 sessions — classic demand-zone reversal setup with high risk/reward.",
-    tags: ["FII Buying", "Oversold RSI"],
-  },
-  {
-    symbol: "TCS", name: "Tata Consultancy", sector: "IT",
-    price: "₹3,856", change: "-0.43%", up: false,
-    reason: "Buyback ₹17,000 Cr · US deal pipeline at 3-yr high",
-    pattern: "Accumulation Zone", patternColor: "#6747f5",
-    conviction: 78, action: "BUY" as const,
-    thesis: "Massive buyback at premium signals management confidence. US deal pipeline at 3-year high. Seasonal IT spending uptick in Q4 supports strong revenue visibility through H1.",
-    tags: ["Buyback", "Deal Pipeline"],
-  },
-  {
-    symbol: "RELIANCE", name: "Reliance Industries", sector: "Energy",
-    price: "₹2,447", change: "+1.2%", up: true,
-    reason: "Jio + Retail EBITDA beat · Breakout above ₹2,400 resistance",
-    pattern: "Volume Breakout", patternColor: "#00d09c",
-    conviction: 85, action: "BUY" as const,
-    thesis: "Jio + Retail twin-engine growth. New Energy capex de-risked by O2C cash flows. High-volume breakout above ₹2,400 resistance — momentum confirmed on weekly chart.",
-    tags: ["Breakout", "Earnings Beat"],
-  },
-  {
-    symbol: "ICICIBANK", name: "ICICI Bank", sector: "Banking",
-    price: "₹1,120", change: "+0.87%", up: true,
-    reason: "RoA at decade high 2.4% · Cup & Handle forming on weekly",
-    pattern: "Cup & Handle", patternColor: "#00a3ff",
-    conviction: 88, action: "BUY" as const,
-    thesis: "Best-in-class banking franchise. RoA 2.4% — decade high. Cup & Handle pattern on weekly with breakout volume. Credit card and retail loan market share gains accelerating.",
-    tags: ["Cup & Handle", "NIM Expansion"],
-  },
-  {
-    symbol: "WIPRO", name: "Wipro Ltd", sector: "IT",
-    price: "₹480", change: "-1.1%", up: false,
-    reason: "EBITDA margin recovery · CEO transition risk priced in",
-    pattern: "Oversold Bounce", patternColor: "#f89c23",
-    conviction: 61, action: "WATCH" as const,
-    thesis: "Margin trajectory improving but revenue growth lags peers. RSI at 31 — bounce expected. Wait for revenue guidance upgrade before committing capital for a full position.",
-    tags: ["Margin Recovery", "Oversold"],
-  },
-  {
-    symbol: "BAJFINANCE", name: "Bajaj Finance", sector: "NBFC",
-    price: "₹7,124", change: "+2.3%", up: true,
-    reason: "AUM +30% YoY · Rural penetration deepening · Bull flag",
-    pattern: "Bull Flag Breakout", patternColor: "#00d09c",
-    conviction: 79, action: "BUY" as const,
-    thesis: "Gold loan + rural consumer finance segments firing. AUM growth at 30% YoY with NPA control. Bull flag breakout on daily — measured move target ₹7,800 within 6–8 weeks.",
-    tags: ["Flag Breakout", "AUM Growth"],
-  },
-];
-
-/* ── Top chart patterns ─────────────────────────────────────── */
-const PATTERNS = [
-  { symbol: "TITAN",     pattern: "Double Bottom",       color: "#00d09c", confidence: 91 },
-  { symbol: "SUNPHARMA", pattern: "Ascending Triangle",  color: "#6747f5", confidence: 84 },
-  { symbol: "KOTAKBANK", pattern: "Flag Breakout",       color: "#00d09c", confidence: 79 },
-  { symbol: "MARUTI",    pattern: "Cup & Handle",        color: "#00a3ff", confidence: 77 },
-];
-
-/* ── Sector pulse ───────────────────────────────────────────── */
-const SECTORS_PULSE = [
-  { name: "IT",      mood: "Bullish",  color: "#00d09c", change: "+1.2%" },
-  { name: "Banking", mood: "Mixed",    color: "#f89c23", change: "-0.3%" },
-  { name: "Energy",  mood: "Bullish",  color: "#00d09c", change: "+2.1%" },
-  { name: "Pharma",  mood: "Bearish",  color: "#eb3b5a", change: "-1.4%" },
-  { name: "FMCG",    mood: "Neutral",  color: "#888899", change: "+0.1%" },
-  { name: "Metals",  mood: "Bullish",  color: "#00d09c", change: "+1.8%" },
-  { name: "Auto",    mood: "Mixed",    color: "#f89c23", change: "+0.5%" },
-];
 
 const SECTOR_MAP: Record<string, string> = {
   HDFCBANK: "Banking", ICICIBANK: "Banking", KOTAKBANK: "Banking",
@@ -121,30 +46,6 @@ function parseDebateTranscript(transcript: string): DebateMessage[] {
   });
 }
 
-const SECURITY_NAMES: Record<string, string> = {
-  "351B3718": "TATASTEEL",
-  "635EBABC": "RELIANCE",
-  "C5256915": "HDFCBANK",
-  "65FF41D7": "INFY",
-  "8E1F0C7D": "TCS",
-  "76AEC4D5": "ICICIBANK",
-  "E9555072": "BHARTIARTL",
-  "94D5ECBA": "ITC",
-  "A24399B1": "L&T",
-  "E437E916": "SBIN",
-  "A99B8F63": "TCS",
-  "7FEAEA88": "RELIANCE"
-};
-
-function formatSecurity(id: string) {
-  if (!id) return null;
-  const upper = id.toUpperCase();
-  if (SECURITY_NAMES[upper]) return SECURITY_NAMES[upper];
-  const segment = id.split("-")[0].toUpperCase();
-  if (SECURITY_NAMES[segment]) return SECURITY_NAMES[segment];
-  if (/^[A-Z&0-9_]{2,15}$/.test(id)) return id;
-  return null;
-}
 
 function convColor(v: number) {
   if (v >= 75) return "#00d09c";
@@ -171,12 +72,28 @@ export default function AnalyzePage() {
     enabled: !!result?.recommendation_id,
   });
 
-  /* Recent recommendations for "recently analyzed" strip */
-  const { data: recents } = useQuery({
-    queryKey: ["recommendations", 10],
-    queryFn: () => api.listRecommendations(10),
+  /* Recommendations — top picks + recently analyzed strip */
+  const { data: allRecs, isLoading: recsLoading } = useQuery({
+    queryKey: ["recommendations", 20],
+    queryFn: () => api.listRecommendations(20),
     refetchInterval: 30_000,
   });
+
+  /* Real-time sector indices from Yahoo Finance */
+  const { data: sectorData, isLoading: sectorsLoading } = useQuery({
+    queryKey: ["sector-pulse"],
+    queryFn: () => fetch("/api/sectors").then((r) => r.json()),
+    refetchInterval: 60_000,
+  });
+
+  const topPicks = React.useMemo(() => {
+    return [...(allRecs ?? [])]
+      .filter((r) => r.action.toLowerCase() === "buy" || r.action.toLowerCase() === "hold")
+      .sort((a, b) => b.conviction - a.conviction)
+      .slice(0, 6);
+  }, [allRecs]);
+
+  const recents = allRecs;
 
   const run = useMutation({
     mutationFn: (params: { symbol: string; sector: string }) =>
@@ -239,7 +156,7 @@ export default function AnalyzePage() {
     setSearchVal(val.toUpperCase());
     const v = val.toUpperCase();
     if (v.length >= 1) {
-      const pool = [...new Set([...Object.keys(SECTOR_MAP), ...TRENDING.map(t => t.symbol), ...PATTERNS.map(p => p.symbol)])];
+      const pool = [...new Set([...Object.keys(SECTOR_MAP), ...(allRecs ?? []).map(r => r.symbol)])];
       const matches = pool.filter(s => s.startsWith(v)).slice(0, 6);
       setSuggestions(matches);
       setShowSug(matches.length > 0);
@@ -352,107 +269,101 @@ export default function AnalyzePage() {
         {/* Main scrollable content */}
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-7">
 
-          {/* Trending picks */}
+          {/* Top conviction picks from real AI analysis */}
           <section>
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <Flame className="h-4 w-4" style={{ color: "#f89c23" }} />
-                <span className="text-[13px] font-bold text-text">Trending AI Picks</span>
-                <span
-                  className="text-[10px] font-semibold px-2 py-0.5 rounded-full border"
-                  style={{ color: "var(--groww-green)", borderColor: "rgba(0,208,156,.3)", background: "rgba(0,208,156,.08)" }}
-                >
-                  Live · AI Filtered
-                </span>
+                <span className="text-[13px] font-bold text-text">Top AI Conviction Picks</span>
+                {!recsLoading && (
+                  <span
+                    className="text-[10px] font-semibold px-2 py-0.5 rounded-full border"
+                    style={{ color: "var(--groww-green)", borderColor: "rgba(0,208,156,.3)", background: "rgba(0,208,156,.08)" }}
+                  >
+                    Live · {topPicks.length} pick{topPicks.length !== 1 ? "s" : ""}
+                  </span>
+                )}
               </div>
-              <button className="flex items-center gap-1.5 text-[11px] text-muted hover:text-text transition-colors">
-                <RefreshCw className="h-3 w-3" />
-                Refresh
-              </button>
             </div>
 
             <div className="rounded-xl border border-border bg-surface overflow-hidden">
-              {/* List header */}
               <div
                 className="grid items-center gap-2 border-b border-border bg-surface-2/60 px-4 py-2.5 text-[9px] font-bold uppercase tracking-[0.12em] text-muted"
-                style={{ gridTemplateColumns: "28px 170px 115px 88px 1fr 95px" }}
+                style={{ gridTemplateColumns: "28px 160px 88px 1fr 110px" }}
               >
                 <span>#</span>
                 <span>Symbol</span>
-                <span>Pattern</span>
                 <span>Conviction</span>
-                <span>Reason</span>
-                <span className="text-right">Analyze</span>
+                <span>AI Thesis</span>
+                <span className="text-right">Action</span>
               </div>
 
-              {TRENDING.map((stock, i) => (
-                <motion.div
-                  key={stock.symbol}
-                  initial={{ opacity: 0, x: -6 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: i * 0.04, duration: 0.3 }}
-                >
-                  <TrendingRow
-                    stock={stock}
-                    rank={i + 1}
-                    isActive={activeSymbol === stock.symbol}
-                    isLoading={run.isPending && activeSymbol === stock.symbol}
-                    onAnalyze={() => analyze(stock.symbol, stock.sector)}
-                  />
-                </motion.div>
-              ))}
-            </div>
-          </section>
-
-          {/* Chart patterns */}
-          <section>
-            <div className="flex items-center gap-2 mb-3">
-              <BarChart2 className="h-4 w-4 text-muted" />
-              <span className="text-[13px] font-bold text-text">Top Chart Patterns</span>
-              <span className="text-[10px] text-muted">Detected by Technical Agent</span>
-            </div>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {PATTERNS.map((p) => (
-                <button
-                  key={p.symbol}
-                  onClick={() => analyze(p.symbol, SECTOR_MAP[p.symbol])}
-                  disabled={run.isPending}
-                  className="group relative rounded-xl border border-border bg-surface p-4 text-left hover:border-border-2 card-hover transition-all disabled:opacity-60"
-                >
-                  <div className="absolute inset-x-0 top-0 h-[3px] rounded-t-xl" style={{ background: p.color }} />
-                  <div className="text-[16px] font-bold text-text mb-0.5">{p.symbol}</div>
-                  <div className="text-[11px] font-semibold mb-3" style={{ color: p.color }}>{p.pattern}</div>
-                  <div className="flex items-center gap-1.5">
-                    <div className="flex-1 h-1.5 bg-surface-3 rounded-full overflow-hidden">
-                      <div className="h-full rounded-full" style={{ width: `${p.confidence}%`, background: p.color }} />
-                    </div>
-                    <span className="text-[11px] font-bold tabular" style={{ color: p.color }}>{p.confidence}%</span>
+              {recsLoading ? (
+                [...Array(4)].map((_, i) => (
+                  <div key={i} className="flex items-center gap-3 px-4 py-3 border-b border-border last:border-0">
+                    <Skeleton className="h-4 w-4" />
+                    <Skeleton className="h-5 w-24" />
+                    <Skeleton className="h-4 w-16" />
+                    <Skeleton className="h-4 flex-1" />
+                    <Skeleton className="h-7 w-20" />
                   </div>
-                  <div className="mt-1.5 text-[10px] text-muted">Click to analyze →</div>
-                </button>
-              ))}
+                ))
+              ) : topPicks.length === 0 ? (
+                <div className="flex flex-col items-center gap-3 py-12 text-center">
+                  <Sparkles className="h-8 w-8 text-muted opacity-40" />
+                  <p className="text-[13px] font-semibold text-text">No picks yet</p>
+                  <p className="text-[12px] text-muted">Analyze symbols above to generate AI conviction picks</p>
+                </div>
+              ) : (
+                topPicks.map((rec, i) => (
+                  <motion.div
+                    key={rec.id}
+                    initial={{ opacity: 0, x: -6 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: i * 0.04, duration: 0.3 }}
+                  >
+                    <RecRow
+                      rec={rec}
+                      rank={i + 1}
+                      isActive={activeSymbol === rec.symbol}
+                      isLoading={run.isPending && activeSymbol === rec.symbol}
+                      onAnalyze={() => analyze(rec.symbol, SECTOR_MAP[rec.symbol] ?? "IT")}
+                    />
+                  </motion.div>
+                ))
+              )}
             </div>
           </section>
 
-          {/* Sector pulse */}
+          {/* Live sector pulse from NSE indices */}
           <section>
             <div className="flex items-center gap-2 mb-3">
               <Activity className="h-4 w-4 text-muted" />
               <span className="text-[13px] font-bold text-text">Sector Pulse</span>
+              <span className="text-[10px] text-muted">Live · NSE indices</span>
             </div>
             <div className="flex flex-wrap gap-2">
-              {SECTORS_PULSE.map((s) => (
-                <div
-                  key={s.name}
-                  className="flex items-center gap-2 rounded-full border px-3 py-1.5 text-[12px]"
-                  style={{ borderColor: `${s.color}30`, background: `${s.color}08` }}
-                >
-                  <div className="h-1.5 w-1.5 rounded-full shrink-0" style={{ background: s.color }} />
-                  <span className="font-semibold text-text">{s.name}</span>
-                  <span className="font-semibold tabular" style={{ color: s.color }}>{s.change}</span>
-                  <span className="text-muted">{s.mood}</span>
-                </div>
-              ))}
+              {sectorsLoading
+                ? [...Array(6)].map((_, i) => <Skeleton key={i} className="h-7 w-28 rounded-full" />)
+                : (sectorData ?? []).map((s: { label: string; changePct: number; up: boolean }) => {
+                    const color = s.up ? "#00d09c" : "#eb3b5a";
+                    const mood = s.changePct >= 0.5 ? "Bullish" : s.changePct <= -0.5 ? "Bearish" : "Neutral";
+                    return (
+                      <div
+                        key={s.label}
+                        className="flex items-center gap-2 rounded-full border px-3 py-1.5 text-[12px]"
+                        style={{ borderColor: `${color}30`, background: `${color}08` }}
+                      >
+                        <div className="h-1.5 w-1.5 rounded-full shrink-0" style={{ background: color }} />
+                        <span className="font-semibold text-text">{s.label}</span>
+                        <span className="font-semibold tabular" style={{ color }}>
+                          {s.changePct >= 0 ? "+" : ""}{s.changePct.toFixed(2)}%
+                        </span>
+                        <span className="text-muted">{mood}</span>
+                      </div>
+                    );
+                  })
+              }
             </div>
           </section>
 
@@ -464,22 +375,16 @@ export default function AnalyzePage() {
                 <span className="text-[13px] font-bold text-text">Recently Analyzed</span>
               </div>
               <div className="flex flex-wrap gap-2">
-                {recents
-                  .filter((r) => formatSecurity(r.security_id) !== null)
-                  .slice(0, 8)
-                  .map((r) => {
-                    const name = formatSecurity(r.security_id)!;
-                    return (
-                      <button
-                        key={r.id}
-                        onClick={() => analyze(name, SECTOR_MAP[name] ?? "IT")}
-                        className="flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-[12px] hover:bg-surface-2 hover:border-border-2 transition-all"
-                      >
-                        <span className="font-bold text-text">{name}</span>
-                        <span className="text-muted">{timeAgo(r.created_at)}</span>
-                      </button>
-                    );
-                  })}
+                {recents.slice(0, 8).map((r) => (
+                  <button
+                    key={r.id}
+                    onClick={() => analyze(r.symbol, SECTOR_MAP[r.symbol] ?? "IT")}
+                    className="flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-[12px] hover:bg-surface-2 hover:border-border-2 transition-all"
+                  >
+                    <span className="font-bold text-text">{r.symbol}</span>
+                    <span className="text-muted">{timeAgo(r.created_at)}</span>
+                  </button>
+                ))}
               </div>
             </section>
           )}
@@ -806,19 +711,20 @@ function DebatePanel({ detail }: { detail: RecommendationDetail | null }) {
   );
 }
 
-/* ── Trending stock list row ─────────────────────────────────── */
-function TrendingRow({
-  stock, rank, isActive, isLoading, onAnalyze,
+/* ── Real recommendation row ────────────────────────────────── */
+function RecRow({
+  rec, rank, isActive, isLoading, onAnalyze,
 }: {
-  stock: typeof TRENDING[0];
+  rec: { id: string; symbol: string; action: string; conviction: number; created_at: string; thesis?: string | null };
   rank: number;
   isActive: boolean;
   isLoading: boolean;
   onAnalyze: () => void;
 }) {
   const [expanded, setExpanded] = React.useState(false);
-  const cvCol = convColor(stock.conviction);
-  const actionColor = (stock.action as string) === "BUY" ? "#00d09c" : (stock.action as string) === "AVOID" ? "#eb3b5a" : "#f89c23";
+  const cvCol = convColor(rec.conviction);
+  const actionColor = rec.action.toLowerCase() === "buy" ? "#00d09c"
+    : rec.action.toLowerCase() === "sell" ? "#eb3b5a" : "#f89c23";
 
   return (
     <div
@@ -826,90 +732,52 @@ function TrendingRow({
         isActive ? "bg-[rgba(103,71,245,0.05)]" : "hover:bg-surface-2/30"
       }`}
     >
-      {/* Main row */}
       <div
         className="grid items-center gap-2 px-4 py-2.5"
-        style={{ gridTemplateColumns: "28px 170px 115px 88px 1fr 95px" }}
+        style={{ gridTemplateColumns: "28px 160px 88px 1fr 110px" }}
       >
-        {/* Rank */}
         <span className="tabular text-[11px] font-bold text-muted text-center select-none">{rank}</span>
 
-        {/* Symbol + name + price + action badge */}
         <div className="min-w-0">
           <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
-            <span className="text-[13px] font-bold text-text leading-none">{stock.symbol}</span>
-            <span
-              className="text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0"
-              style={{ background: `${actionColor}15`, color: actionColor }}
-            >
-              {stock.action}
+            <span className="text-[13px] font-bold text-text leading-none">{rec.symbol}</span>
+            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0"
+              style={{ background: `${actionColor}15`, color: actionColor }}>
+              {rec.action.toUpperCase()}
             </span>
           </div>
-          <div className="text-[10px] text-muted truncate">{stock.name} · {stock.sector}</div>
-          <div className="flex items-center gap-1.5 mt-0.5">
-            <span className="tabular text-[10px] font-semibold text-text">{stock.price}</span>
-            <span className="tabular text-[10px] font-bold" style={{ color: stock.up ? "#00d09c" : "#eb3b5a" }}>
-              {stock.change}
-            </span>
-          </div>
+          <div className="text-[10px] text-muted">{timeAgo(rec.created_at)}</div>
         </div>
 
-        {/* Pattern badge */}
-        <div>
-          <span
-            className="inline-flex text-[10px] font-bold px-2 py-0.5 rounded-full"
-            style={{
-              background: `${stock.patternColor}12`,
-              color: stock.patternColor,
-              border: `1px solid ${stock.patternColor}25`,
-            }}
-          >
-            {stock.pattern}
-          </span>
-        </div>
-
-        {/* Conviction bar + score */}
         <div className="flex items-center gap-1.5">
           <div className="flex-1 h-1.5 bg-surface-3 rounded-full overflow-hidden">
-            <div className="h-full rounded-full" style={{ width: `${stock.conviction}%`, background: cvCol }} />
+            <div className="h-full rounded-full" style={{ width: `${rec.conviction}%`, background: cvCol }} />
           </div>
           <span className="tabular text-[11px] font-bold shrink-0 w-6 text-right" style={{ color: cvCol }}>
-            {stock.conviction}
+            {rec.conviction.toFixed(0)}
           </span>
         </div>
 
-        {/* Reason + tags + thesis toggle */}
         <div className="min-w-0">
-          <p className="text-[11px] text-muted leading-snug truncate">{stock.reason}</p>
-          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-            {stock.tags.slice(0, 1).map(t => (
-              <span
-                key={t}
-                className="text-[9px] font-medium text-muted/70 border border-border rounded px-1.5 py-0.5"
-              >
-                {t}
-              </span>
-            ))}
+          <p className="text-[11px] text-muted leading-snug truncate">
+            {rec.thesis || "AI analysis complete · click to re-run"}
+          </p>
+          {rec.thesis && (
             <button
               onClick={e => { e.stopPropagation(); setExpanded(!expanded); }}
-              className="text-[9px] font-semibold transition-colors"
+              className="text-[9px] font-semibold transition-colors mt-0.5"
               style={{ color: "var(--groww-purple)" }}
             >
-              {expanded ? "Hide ↑" : "Thesis ↓"}
+              {expanded ? "Hide ↑" : "Full thesis ↓"}
             </button>
-          </div>
+          )}
         </div>
 
-        {/* Analyze CTA */}
         <button
           onClick={onAnalyze}
           disabled={isLoading}
           className="flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-[11px] font-bold text-white transition-all hover:opacity-90 disabled:opacity-60 shrink-0"
-          style={{
-            background: isActive
-              ? cvCol
-              : "linear-gradient(135deg,#6747f5,#00a3ff)",
-          }}
+          style={{ background: isActive ? cvCol : "linear-gradient(135deg,#6747f5,#00a3ff)" }}
         >
           {isLoading ? (
             <><Loader2 className="h-3 w-3 animate-spin" />Running…</>
@@ -921,9 +789,8 @@ function TrendingRow({
         </button>
       </div>
 
-      {/* Expandable thesis */}
       <AnimatePresence>
-        {expanded && (
+        {expanded && rec.thesis && (
           <motion.div
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
@@ -932,9 +799,7 @@ function TrendingRow({
             className="overflow-hidden"
           >
             <div className="px-12 pb-3.5 pt-1.5 border-t border-border/40">
-              <p className="text-[12px] text-muted leading-relaxed max-w-2xl">
-                <span className="font-semibold text-muted-2">Thesis · </span>{stock.thesis}
-              </p>
+              <p className="text-[12px] text-muted leading-relaxed max-w-2xl">{rec.thesis}</p>
             </div>
           </motion.div>
         )}

@@ -1,12 +1,12 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import * as React from "react";
-import { Search, SlidersHorizontal, ArrowRight, Sparkles, Building2, Zap, TrendingUp, Clock, Flame, Globe2 } from "lucide-react";
+import { Search, SlidersHorizontal, Sparkles, Zap, TrendingUp, Clock, Flame, RefreshCw } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { ActionBadge, StatusBadge } from "@/components/status-badge";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Card, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api";
 import { timeAgo } from "@/lib/format";
@@ -18,72 +18,6 @@ const STATUS_FILTERS = [
   { key: "executed",     label: "Executed" },
 ];
 
-const SECURITY_NAMES: Record<string, string> = {
-  "351B3718": "TATASTEEL",
-  "635EBABC": "RELIANCE",
-  "C5256915": "HDFCBANK",
-  "65FF41D7": "INFY",
-  "8E1F0C7D": "TCS",
-  "76AEC4D5": "ICICIBANK",
-  "E9555072": "BHARTIARTL",
-  "94D5ECBA": "ITC",
-  "A24399B1": "L&T",
-  "E437E916": "SBIN",
-  "A99B8F63": "TCS",
-  "7FEAEA88": "RELIANCE",
-  "7513EB63": "ITC",
-  "1305A7D8": "TATASTEEL",
-  "0C9231A1": "HDFCBANK",
-  "6EBDCA58": "INFY",
-  "98A21CDA": "TCS",
-  "25FA0673": "ICICIBANK",
-  "8B5E6AC5": "RELIANCE"
-};
-
-function formatSecurity(id: string) {
-  if (!id) return null;
-  const upper = id.toUpperCase();
-  if (SECURITY_NAMES[upper]) return SECURITY_NAMES[upper];
-  const segment = id.split("-")[0].toUpperCase();
-  if (SECURITY_NAMES[segment]) return SECURITY_NAMES[segment];
-  if (/^[A-Z&0-9_]{2,15}$/.test(id)) return id;
-  return null;
-}
-
-function getSecurityFullName(id: string) {
-  const formatted = formatSecurity(id);
-  const names: Record<string, string> = {
-    "TATASTEEL": "Tata Steel Ltd.",
-    "RELIANCE": "Reliance Industries Ltd.",
-    "HDFCBANK": "HDFC Bank Ltd.",
-    "INFY": "Infosys Ltd.",
-    "TCS": "Tata Consultancy Services Ltd.",
-    "ICICIBANK": "ICICI Bank Ltd.",
-    "BHARTIARTL": "Bharti Airtel Ltd.",
-    "ITC": "ITC Ltd.",
-    "L&T": "Larsen & Toubro Ltd.",
-    "SBIN": "State Bank of India"
-  };
-  return names[formatted || ""] || "Indian Equity Asset";
-}
-
-function getSecuritySector(symbol: string) {
-  const sectors: Record<string, string> = {
-    TATASTEEL: "Metals",
-    RELIANCE: "Energy",
-    HDFCBANK: "Banking",
-    INFY: "IT",
-    TCS: "IT",
-    ICICIBANK: "Banking",
-    BHARTIARTL: "Telecom",
-    ITC: "FMCG",
-    "L&T": "Infra",
-    SBIN: "Banking"
-  };
-  return sectors[symbol] || "Equities";
-}
-
-
 function convictionColor(v: number) {
   if (v >= 75) return "var(--groww-green)";
   if (v >= 50) return "var(--groww-orange)";
@@ -93,6 +27,8 @@ function convictionColor(v: number) {
 export default function RecommendationsPage() {
   const [status, setStatus] = React.useState("all");
   const [minConv, setMinConv] = React.useState(0);
+  const [scanMsg, setScanMsg] = React.useState<string | null>(null);
+  const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({
     queryKey: ["recommendations", 100],
@@ -100,16 +36,48 @@ export default function RecommendationsPage() {
     refetchInterval: 15_000,
   });
 
+  const scanMutation = useMutation({
+    mutationFn: () => api.scanNow(),
+    onSuccess: (result) => {
+      if (result.skipped) {
+        setScanMsg(`Skipped: ${result.skipped}`);
+      } else {
+        setScanMsg(`Scanned ${result.scanned} symbol${result.scanned !== 1 ? "s" : ""}: ${(result.symbols ?? []).join(", ")}`);
+        queryClient.invalidateQueries({ queryKey: ["recommendations"] });
+      }
+      setTimeout(() => setScanMsg(null), 8000);
+    },
+    onError: () => {
+      setScanMsg("Scan failed — check API is running.");
+      setTimeout(() => setScanMsg(null), 6000);
+    },
+  });
+
   const rows = (data ?? [])
-    .filter((r) => formatSecurity(r.security_id) !== null) // Filter out stale recommendations
     .filter((r) => (status === "all" || r.status === status) && r.conviction >= minConv);
 
   return (
     <div className="space-y-5 animate-fade-up">
-      <PageHeader
-        title="Recommendations Deck"
-        subtitle="Every recommendation is fully explainable — click on an asset row to inspect the agent debate and safety gate."
-      />
+      <div className="flex items-start justify-between gap-4">
+        <PageHeader
+          title="Recommendations Deck"
+          subtitle="Every recommendation is fully explainable — click on an asset row to inspect the agent debate and safety gate."
+        />
+        <div className="flex flex-col items-end gap-1.5 shrink-0 pt-1">
+          <button
+            onClick={() => { setScanMsg(null); scanMutation.mutate(); }}
+            disabled={scanMutation.isPending}
+            className="flex items-center gap-2 rounded-lg px-4 py-2 text-[12px] font-semibold text-white transition-all disabled:opacity-60"
+            style={{ background: "var(--groww-purple)" }}
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${scanMutation.isPending ? "animate-spin" : ""}`} />
+            {scanMutation.isPending ? "Scanning…" : "Scan Now"}
+          </button>
+          {scanMsg && (
+            <span className="text-[11px] text-muted max-w-[240px] text-right leading-snug">{scanMsg}</span>
+          )}
+        </div>
+      </div>
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">
@@ -181,10 +149,6 @@ export default function RecommendationsPage() {
               <div className="divide-y divide-border/60">
                 {rows.map((r) => {
                   const col = convictionColor(r.conviction);
-                  const ticker = formatSecurity(r.security_id)!;
-                  const fullName = getSecurityFullName(r.security_id);
-                  const sector = getSecuritySector(ticker);
-                  const thesisSnippet = r.thesis || "No thesis summary provided.";
 
                   return (
                     <Link
@@ -192,15 +156,15 @@ export default function RecommendationsPage() {
                       href={`/recommendations/${r.id}`}
                       className="grid grid-cols-[180px_130px_85px_150px_120px_1fr_80px] items-center gap-4 px-5 py-3.5 text-sm transition-colors hover:bg-surface-2/30"
                     >
-                      {/* Asset & Name */}
+                      {/* Asset & Symbol */}
                       <div className="min-w-0">
-                        <div className="font-bold text-text truncate">{ticker}</div>
-                        <div className="text-[10px] text-muted truncate mt-0.5">{fullName}</div>
+                        <div className="font-bold text-text truncate">{r.symbol}</div>
+                        <div className="text-[10px] text-muted truncate mt-0.5">{r.exchange}</div>
                       </div>
 
-                      {/* Exch & Sector */}
+                      {/* Exchange */}
                       <div className="text-[11px] font-medium text-muted">
-                        <span className="font-bold text-text">NSE</span> · {sector}
+                        <span className="font-bold text-text">{r.exchange}</span>
                       </div>
 
                       {/* Action Badge */}
@@ -315,58 +279,44 @@ export default function RecommendationsPage() {
           </Card>
         </div>
 
-        {/* Opportunities & Market Pulse row */}
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 mt-5">
-          {/* Best Stock Scores */}
-          <Card className="p-5 border border-border/80 hover:border-border transition-colors">
+        {/* Live top signals from real recommendations */}
+        <div className="mt-5">
+          <Card className="p-5 border border-border/80">
             <CardTitle className="flex items-center gap-2 text-sm font-semibold text-text mb-3">
               <Flame className="h-4 w-4" style={{ color: "#f89c23" }} />
-              AI Best Watchlist Scores
+              Top Conviction Signals
+              <span className="text-[10px] font-medium text-muted ml-1">Live · highest scoring BUY picks</span>
             </CardTitle>
-            <div className="space-y-3">
-              {[
-                { symbol: "ICICIBANK", score: 88, desc: "Cup & handle weekly breakout with decade-high RoA (2.4%)" },
-                { symbol: "RELIANCE", score: 85, desc: "Volume breakout above 2,400 backed by Jio EBITDA beat" },
-                { symbol: "HDFCBANK", score: 82, desc: "Oversold RSI (28) demand-zone rebound with FII buying" }
-              ].map((stock) => (
-                <div key={stock.symbol} className="flex items-start justify-between gap-3 border-b border-border/30 pb-2 last:border-0 last:pb-0">
-                  <div className="min-w-0">
-                    <span className="font-bold text-[13px] text-text block">{stock.symbol}</span>
-                    <span className="text-[11px] text-muted truncate block">{stock.desc}</span>
-                  </div>
-                  <span className="text-[13px] font-bold px-2 py-0.5 rounded bg-surface-3 tabular" style={{ color: convictionColor(stock.score) }}>
-                    {stock.score}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </Card>
-
-          {/* AI News Alerts */}
-          <Card className="p-5 border border-border/80 hover:border-border transition-colors">
-            <CardTitle className="flex items-center gap-2 text-sm font-semibold text-text mb-3">
-              <Globe2 className="h-4 w-4" style={{ color: "#00d09c" }} />
-              AI Market News Pulse
-            </CardTitle>
-            <div className="space-y-3">
-              {[
-                { title: "Telecom Tariff Re-Rating", tag: "Bullish", col: "#00d09c", desc: "Airtel and Jio hike tariffs by 15-20%, accelerating ARPU growth trajectory." },
-                { title: "FII Inflows Accelerate in Banks", tag: "Bullish", col: "#00d09c", desc: "Foreign institutions net buy financial services for the 4th consecutive session." },
-                { title: "IT Spending Pipeline Expands", tag: "Mixed", col: "#f89c23", desc: "US deal pipeline reaches 3-year high but margin pressures linger." }
-              ].map((news, i) => (
-                <div key={i} className="flex items-start justify-between gap-3 border-b border-border/30 pb-2 last:border-0 last:pb-0">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 mb-0.5">
-                      <span className="font-bold text-[12px] text-text truncate">{news.title}</span>
-                      <span className="text-[9px] font-semibold px-1.5 py-0.25 rounded shrink-0" style={{ backgroundColor: `${news.col}15`, color: news.col }}>
-                        {news.tag}
-                      </span>
-                    </div>
-                    <span className="text-[11px] text-muted block leading-relaxed">{news.desc}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
+            {data && data.filter(r => r.action.toLowerCase() === "buy").length === 0 ? (
+              <p className="text-[12px] text-muted py-4 text-center">No BUY signals yet — click "Scan Now" to generate picks.</p>
+            ) : (
+              <div className="space-y-2">
+                {(data ?? [])
+                  .filter(r => r.action.toLowerCase() === "buy")
+                  .sort((a, b) => b.conviction - a.conviction)
+                  .slice(0, 5)
+                  .map((r) => {
+                    const col = convictionColor(r.conviction);
+                    return (
+                      <Link
+                        key={r.id}
+                        href={`/recommendations/${r.id}`}
+                        className="flex items-center justify-between gap-3 border-b border-border/30 pb-2 last:border-0 last:pb-0 hover:opacity-80 transition-opacity"
+                      >
+                        <div className="min-w-0">
+                          <span className="font-bold text-[13px] text-text block">{r.symbol}</span>
+                          <span className="text-[11px] text-muted truncate block max-w-xs">
+                            {r.thesis || "View full AI thesis →"}
+                          </span>
+                        </div>
+                        <span className="text-[13px] font-bold px-2 py-0.5 rounded bg-surface-3 tabular shrink-0" style={{ color: col }}>
+                          {r.conviction.toFixed(0)}
+                        </span>
+                      </Link>
+                    );
+                  })}
+              </div>
+            )}
           </Card>
         </div>
       </div>

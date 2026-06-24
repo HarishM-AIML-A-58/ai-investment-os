@@ -52,14 +52,77 @@ async def list_recs(
         RecommendationSummary(
             id=r.id,
             security_id=r.security_id,
+            symbol=sec.symbol,
+            exchange=sec.exchange,
             action=r.action,
             conviction=r.conviction,
             status=r.status,
             created_at=r.created_at,
             thesis=r.thesis,
         )
-        for r in rows
+        for r, sec in rows
     ]
+
+
+@router.post("/scan-now", response_model=dict)
+async def scan_now(
+    db: AsyncSession = Depends(get_db),
+    llm: LLMClient = Depends(get_llm),
+    embedder: Embedder | None = Depends(get_embedder),
+    grounding=Depends(get_grounding),
+) -> dict:
+    """Trigger an immediate full-watchlist scan (no Celery required).
+
+    Pulls the active watchlist and policy from the DB, then runs the same
+    decision pipeline as the Celery beat job.  Safe to call from the UI.
+    """
+    from decimal import Decimal
+
+    from app.decision import AccountState, MarketState
+    from app.engine.policy import UserPolicy
+    from app.repositories.policy_repo import get_policy
+    from app.repositories.watchlist_repo import list_active
+    from app.scanner import ScanCandidate, run_scan
+
+    policy_model = await get_policy(db)
+    if policy_model is None:
+        return {"skipped": "no policy configured"}
+
+    policy = UserPolicy(
+        monthly_budget=policy_model.monthly_budget,
+        risk_profile=policy_model.risk_profile,
+        max_position_pct=policy_model.max_position_pct,
+        max_sector_pct=policy_model.max_sector_pct,
+        min_conviction=policy_model.min_conviction,
+        cash_reserve_pct=policy_model.cash_reserve_pct,
+        auto_execute=policy_model.auto_execute,
+        autonomy_tier=policy_model.autonomy_tier,
+    )
+    items = await list_active(db)
+    if not items:
+        return {"skipped": "empty watchlist"}
+
+    candidates = [
+        ScanCandidate(symbol=i.symbol, exchange=i.exchange, sector=i.sector or "UNKNOWN")
+        for i in items
+    ]
+    account = AccountState(
+        total_capital=policy.monthly_budget * Decimal(10),
+        cash_available=policy.monthly_budget,
+    )
+    market = MarketState(avg_daily_value=Decimal("10000000"))
+
+    outcomes = await run_scan(
+        candidates=candidates,
+        llm=llm,
+        session=db,
+        policy=policy,
+        account=account,
+        market=market,
+        embedder=embedder,
+        context="manual scan",
+    )
+    return {"scanned": len(outcomes), "symbols": [c.symbol for c in candidates]}
 
 
 @router.get("/{recommendation_id}", response_model=RecommendationDetail)

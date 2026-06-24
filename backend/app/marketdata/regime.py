@@ -42,26 +42,33 @@ async def get_regime(force_refresh: bool = False) -> dict:
         if not force_refresh and _cache and (time.monotonic() - _cache_ts) < _CACHE_TTL:
             return {**_cache, "cached": True}
 
-        result = await asyncio.get_event_loop().run_in_executor(None, _compute_regime)
+        result = await _compute_regime_async()
         _cache = result
         _cache_ts = time.monotonic()
         return {**result, "cached": False}
 
 
-def _compute_regime() -> dict:
-    """Blocking computation — run in thread executor."""
+async def _compute_regime_async() -> dict:
+    """Async regime calculation using official Groww MCP historical daily candles."""
     import datetime
+    from app.mcp.manager import get_mcp_manager
 
     try:
-        import yfinance as yf
+        candles = await get_mcp_manager().fetch_history("NIFTY", exchange="NSE", days=250)
+        if not candles or len(candles) < 30:
+            raise ValueError("Insufficient NIFTY50 history from Groww MCP")
 
-        hist = yf.Ticker("^NSEI").history(period="250d")
-        if hist is None or len(hist) < 30:
-            raise ValueError("Insufficient NIFTY50 history")
+        closes = [float(c.get("close") or c.get("Close") or c.get("close_price") or 0) for c in candles]
+        highs = [float(c.get("high") or c.get("High") or 0) for c in candles]
+        lows = [float(c.get("low") or c.get("Low") or 0) for c in candles]
 
-        closes = list(hist["Close"])
-        highs = list(hist["High"])
-        lows = list(hist["Low"])
+        # Verify we have valid numeric entries
+        closes = [c for c in closes if c > 0]
+        highs = [h for h in highs if h > 0]
+        lows = [l for l in lows if l > 0]
+
+        if len(closes) < 30:
+            raise ValueError("Invalid close values in history")
 
         price = closes[-1]
         sma20 = sum(closes[-20:]) / 20

@@ -39,9 +39,9 @@ const config: Config = {
         "chart-6": "var(--groww-yellow)",
       },
       fontFamily: {
-        display: ["var(--font-display)", "Inter", "ui-sans-serif", "system-ui"],
-        sans:    ["var(--font-sans)",    "Inter", "ui-sans-serif", "system-ui"],
-        mono:    ["var(--font-mono)",    "IBM Plex Mono", "ui-monospace", "monospace"],
+        display: ["var(--font-geist-sans)", "Inter", "ui-sans-serif", "system-ui"],
+        sans:    ["var(--font-geist-sans)", "Inter", "ui-sans-serif", "system-ui"],
+        mono:    ["var(--font-geist-mono)", "IBM Plex Mono", "ui-monospace", "monospace"],
       },
       borderRadius: {
         "2xl": "1rem",

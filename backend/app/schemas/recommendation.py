@@ -38,6 +38,8 @@ class GuardCheckOut(BaseModel):
 class RecommendationSummary(BaseModel):
     id: UUID
     security_id: UUID
+    symbol: str
+    exchange: str
     action: str
     conviction: float
     status: str

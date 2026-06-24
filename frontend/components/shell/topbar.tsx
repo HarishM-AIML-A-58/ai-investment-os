@@ -1,5 +1,6 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
 import { Search } from "lucide-react";
 import * as React from "react";
 import { CommandPalette } from "@/components/shell/command-palette";
@@ -7,15 +8,6 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { useApiHealth } from "@/lib/use-health";
 
 type IndexDatum = { label: string; price: number; change: number; changePct: number; up: boolean };
-
-const INIT: IndexDatum[] = [
-  { label: "NIFTY 50",   price: 0, change: 0, changePct: 0, up: true },
-  { label: "SENSEX",     price: 0, change: 0, changePct: 0, up: true },
-  { label: "BANKNIFTY",  price: 0, change: 0, changePct: 0, up: true },
-  { label: "MIDCPNIFTY", price: 0, change: 0, changePct: 0, up: true },
-  { label: "FINNIFTY",   price: 0, change: 0, changePct: 0, up: true },
-  { label: "NIFTYIT",    price: 0, change: 0, changePct: 0, up: true },
-];
 
 function fmtPrice(n: number) {
   if (!n) return "—";
@@ -44,35 +36,36 @@ function IndexChip({ label, price, change, changePct, up }: IndexDatum) {
 
 export function Topbar() {
   const [open, setOpen] = React.useState(false);
-  const [indices, setIndices] = React.useState<IndexDatum[]>(INIT);
   const healthy = useApiHealth();
 
-  React.useEffect(() => {
-    async function load() {
-      try {
-        const res = await fetch("/api/market");
-        if (!res.ok) return;
-        const data: IndexDatum[] = await res.json();
-        if (Array.isArray(data) && data.length > 0) setIndices(data);
-      } catch {}
-    }
-    load();
-    const id = setInterval(load, 60_000);
-    return () => clearInterval(id);
-  }, []);
+  /* Shares the same React Query cache key as the dashboard — only ONE
+     fetch to /api/market fires every 60 s regardless of how many
+     components subscribe to this key. */
+  const { data: indices } = useQuery<IndexDatum[]>({
+    queryKey: ["market-indices"],
+    queryFn: () => fetch("/api/market").then((r) => r.json()),
+    refetchInterval: 60_000,
+    staleTime: 55_000,
+  });
+
+  const chips: IndexDatum[] = (indices && indices.length > 0) ? indices : [];
 
   return (
     <header className="flex flex-col shrink-0 border-b border-border bg-surface">
-      {/* Market indices ticker strip — live, refreshes every 60s */}
+      {/* Market indices ticker strip — live, refreshes every 60 s */}
       <div className="flex items-center h-9 border-b border-border overflow-hidden bg-surface-2/50">
-        <div className="flex ticker-track">
-          {[...indices, ...indices].map((idx, i) => (
-            <React.Fragment key={i}>
-              <IndexChip {...idx} />
-              <span className="text-border-2 text-[11px] select-none">·</span>
-            </React.Fragment>
-          ))}
-        </div>
+        {chips.length === 0 ? (
+          <div className="flex items-center px-4 text-[11px] text-muted animate-pulse">Loading indices…</div>
+        ) : (
+          <div className="flex ticker-track">
+            {[...chips, ...chips].map((idx, i) => (
+              <React.Fragment key={i}>
+                <IndexChip {...idx} />
+                <span className="text-border-2 text-[11px] select-none">·</span>
+              </React.Fragment>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Main topbar row */}
@@ -98,7 +91,7 @@ export function Topbar() {
 
         <div className="flex-1" />
 
-        {/* Groww-style search bar */}
+        {/* Search bar */}
         <button
           id="topbar-command-btn"
           onClick={() => setOpen(true)}

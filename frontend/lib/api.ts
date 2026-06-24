@@ -13,6 +13,8 @@ import type {
   RegimeData,
   ReportPayload,
   WatchlistItem,
+  BrokerFunds,
+  BrokerHoldings,
 } from "./types";
 
 const BASE =
@@ -48,6 +50,10 @@ export const api = {
     http<DecisionOutcome>("/recommendations/decide", {
       method: "POST",
       body: JSON.stringify(body),
+    }),
+  scanNow: () =>
+    http<{ scanned?: number; skipped?: string; symbols?: string[] }>("/recommendations/scan-now", {
+      method: "POST",
     }),
   execute: (id: string, body: { quantity: number; order_type?: string }) =>
     http<unknown>(`/recommendations/${id}/execute`, {
@@ -100,6 +106,10 @@ export const api = {
   // Watchlist helpers (remove by id)
   removeWatchlist: (id: string) =>
     http<void>(`/watchlist/${id}`, { method: "DELETE" }),
+
+  // Broker endpoints via Groww MCP
+  getBrokerFunds: () => http<BrokerFunds>("/broker/funds"),
+  getBrokerHoldings: () => http<BrokerHoldings>("/broker/holdings"),
 };
 
 export { BASE as API_BASE };

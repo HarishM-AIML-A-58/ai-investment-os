@@ -1,6 +1,8 @@
 export type RecommendationSummary = {
   id: string;
   security_id: string;
+  symbol: string;
+  exchange: string;
   action: string;
   conviction: number;
   status: string;
@@ -155,3 +157,41 @@ export type FiiDiiData = {
   fetched_at: string;
   error?: string;
 };
+
+export type BrokerFunds = {
+  available_cash: number;
+  collateral: number;
+  utilized: number;
+  error?: string;
+};
+
+export type StockHolding = {
+  name: string;
+  isin: string;
+  qty: number;
+  avgBuy: number;
+  buyValue: number;
+  currentPrice: number;
+  currentValue: number;
+  pnl: number;
+  sector: string;
+};
+
+export type MFHolding = {
+  name: string;
+  amc: string;
+  category: string;
+  subcat: string;
+  units: number;
+  invested: number;
+  current: number;
+  returns: number;
+  xirr: string;
+};
+
+export type BrokerHoldings = {
+  stocks: StockHolding[];
+  mutual_funds: MFHolding[];
+  error?: string;
+};
+
